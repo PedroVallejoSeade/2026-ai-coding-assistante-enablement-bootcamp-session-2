@@ -49,6 +49,22 @@ function App() {
     fetchData();
   }, []);
 
+  const sortTasks = (tasks) => {
+    return [...tasks].sort((firstTask, secondTask) => {
+      const firstHasDueDate = Boolean(firstTask.due_date);
+      const secondHasDueDate = Boolean(secondTask.due_date);
+
+      if (firstHasDueDate && secondHasDueDate) {
+        return new Date(firstTask.due_date).getTime() - new Date(secondTask.due_date).getTime();
+      }
+
+      if (firstHasDueDate) return -1;
+      if (secondHasDueDate) return 1;
+
+      return firstTask.id - secondTask.id;
+    });
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -57,7 +73,7 @@ function App() {
         throw new Error("Network response was not ok");
       }
       const result = await response.json();
-      setData(result);
+      setData(sortTasks(result));
       setError(null);
     } catch (err) {
       setError("Failed to fetch data: " + err.message);
@@ -95,7 +111,7 @@ function App() {
       }
 
       const result = await response.json();
-      setData([...data, result]);
+      setData((prevData) => sortTasks([...prevData, result]));
       setNewItem("");
       setNewDueDate("");
       showSnackbar("Task added successfully!");
@@ -148,7 +164,9 @@ function App() {
       }
 
       const updatedItem = await response.json();
-      setData(data.map((i) => (i.id === item.id ? updatedItem : i)));
+      setData((prevData) =>
+        sortTasks(prevData.map((existingItem) => (existingItem.id === item.id ? updatedItem : existingItem)))
+      );
       showSnackbar(
         updatedItem.completed ? "Task marked complete!" : "Task marked incomplete!"
       );
@@ -199,7 +217,13 @@ function App() {
       }
 
       const updatedItem = await response.json();
-      setData(data.map((i) => (i.id === editingItem.id ? updatedItem : i)));
+      setData((prevData) =>
+        sortTasks(
+          prevData.map((existingItem) =>
+            existingItem.id === editingItem.id ? updatedItem : existingItem
+          )
+        )
+      );
       closeEditDialog();
       showSnackbar("Task updated successfully!");
     } catch (err) {

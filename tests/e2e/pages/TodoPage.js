@@ -5,39 +5,19 @@
 class TodoPage {
   constructor(page) {
     this.page = page;
-    
-    // Header elements
-    this.appTitle = 'text=📝 To Do App';
-    
-    // Add task form elements
-    this.taskNameInput = 'input[label="Task name"]';
-    this.dueDateInput = 'input[type="date"]';
-    this.addTaskButton = 'button:has-text("Add Task")';
-    
-    // Task list elements
-    this.taskCards = '[data-testid="task-card"]';
-    this.taskCheckbox = (index) => `[data-testid="task-${index}-checkbox"]`;
-    this.taskEditButton = (index) => `[data-testid="task-${index}-edit"]`;
-    this.taskDeleteButton = (index) => `[data-testid="task-${index}-delete"]`;
-    
-    // Dialog elements
-    this.editDialog = '[data-testid="edit-dialog"]';
-    this.editNameField = '[data-testid="edit-name"]';
-    this.editDueDateField = '[data-testid="edit-due-date"]';
-    this.editSaveButton = 'button:has-text("Save")';
-    this.editCancelButton = 'button:has-text("Cancel")';
-    
-    // Loading and notifications
-    this.loadingSpinner = '[role="progressbar"]';
-    this.snackbar = '[role="alert"]';
-    this.noTasksMessage = 'text=No tasks found';
+
+    this.appTitle = page.getByRole('heading', { name: '📝 To Do App' });
+    this.taskNameInput = page.getByLabel('Task name').first();
+    this.dueDateInput = page.getByLabel('Due date').first();
+    this.addTaskButton = page.getByRole('button', { name: 'Add Task' });
+    this.noTasksMessage = page.getByText('No tasks found. Add one to get started! 🚀');
   }
 
   /**
    * Navigate to the TODO app
    */
   async goto() {
-    await this.page.goto('http://localhost:3000');
+    await this.page.goto('/');
     await this.page.waitForLoadState('networkidle');
   }
 
@@ -45,144 +25,106 @@ class TodoPage {
    * Add a new task
    */
   async addTask(taskName, dueDate = null) {
-    await this.page.fill(this.taskNameInput, taskName);
-    
+    await this.taskNameInput.fill(taskName);
+
     if (dueDate) {
-      await this.page.fill(this.dueDateInput, dueDate);
+      await this.dueDateInput.fill(dueDate);
     }
-    
-    await this.page.click(this.addTaskButton);
-    
-    // Wait for the task to appear in the list
-    await this.page.waitForSelector('text=' + taskName);
+
+    await this.addTaskButton.click();
+    await this.getTaskCardByName(taskName).waitFor({ state: 'visible' });
   }
 
   /**
    * Get all tasks currently displayed
    */
   async getAllTasks() {
-    const taskElements = await this.page.$$('[role="listitem"]');
-    const tasks = [];
-    
-    for (let i = 0; i < taskElements.length; i++) {
-      const taskText = await taskElements[i].textContent();
-      tasks.push(taskText);
-    }
-    
-    return tasks;
+    const taskHeadings = this.page.locator('.MuiCard-root h3');
+    return taskHeadings.allTextContents();
   }
 
   /**
    * Delete a task by name
    */
   async deleteTaskByName(taskName) {
-    // Find the card containing the task
-    const taskCard = this.page.locator(
-      `text=${taskName}`
-    ).locator('..');
-    
-    // Find and click the delete button in that card
-    const deleteButton = taskCard.locator('[aria-label*="Delete"]');
-    await deleteButton.click();
-    
-    // Wait for the task to be removed
-    await this.page.waitForSelector(`text=${taskName}`, { state: 'hidden' });
+    await this.page
+      .getByRole('button', { name: `Delete task "${taskName}"` })
+      .first()
+      .click();
+
+    await this.getTaskCardByName(taskName).waitFor({ state: 'hidden' });
   }
 
   /**
    * Edit a task by name
    */
   async editTaskByName(taskName, newName, newDueDate = null) {
-    // Find the card containing the task
-    const taskCard = this.page.locator(
-      `text=${taskName}`
-    ).locator('..');
-    
-    // Find and click the edit button in that card
-    const editButton = taskCard.locator('[aria-label*="Edit"]');
-    await editButton.click();
-    
-    // Wait for the dialog to appear
-    await this.page.waitForSelector(this.editDialog);
-    
-    // Update the name
-    const nameInput = this.page.locator(this.editNameField);
+    await this.page
+      .getByRole('button', { name: `Edit task "${taskName}"` })
+      .first()
+      .click();
+
+    const dialog = this.page.getByRole('dialog', { name: 'Edit Task' });
+    await dialog.waitFor({ state: 'visible' });
+
+    const nameInput = dialog.getByLabel('Task name');
     await nameInput.clear();
     await nameInput.fill(newName);
-    
-    // Update the due date if provided
+
     if (newDueDate) {
-      const dateInput = this.page.locator(this.editDueDateField);
-      await dateInput.clear();
+      const dateInput = dialog.getByLabel('Due date');
+      await dateInput.fill('');
       await dateInput.fill(newDueDate);
     }
-    
-    // Click save
-    await this.page.click(this.editSaveButton);
-    
-    // Wait for the dialog to close
-    await this.page.waitForSelector(this.editDialog, { state: 'hidden' });
-    
-    // Wait for the updated task to appear
-    await this.page.waitForSelector(`text=${newName}`);
+
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await dialog.waitFor({ state: 'hidden' });
+    await this.getTaskCardByName(newName).waitFor({ state: 'visible' });
   }
 
   /**
    * Toggle task completion by name
    */
   async toggleTaskCompletion(taskName) {
-    // Find the card containing the task
-    const taskCard = this.page.locator(
-      `text=${taskName}`
-    ).locator('..');
-    
-    // Find and click the checkbox in that card
-    const checkbox = taskCard.locator('input[type="checkbox"]');
-    await checkbox.click();
+    await this.getTaskCardByName(taskName).locator('input[type="checkbox"]').first().click();
   }
 
   /**
    * Check if a task is completed
    */
   async isTaskCompleted(taskName) {
-    const taskCard = this.page.locator(
-      `text=${taskName}`
-    ).locator('..');
-    
-    const checkbox = taskCard.locator('input[type="checkbox"]');
-    return await checkbox.isChecked();
+    return this.getTaskCardByName(taskName).locator('input[type="checkbox"]').first().isChecked();
   }
 
   /**
    * Wait for notification to appear and get its message
    */
   async getNotificationMessage() {
-    await this.page.waitForSelector(this.snackbar);
-    const message = await this.page.textContent(this.snackbar);
-    return message;
+    const snackbar = this.page.getByRole('alert').last();
+    await snackbar.waitFor({ state: 'visible' });
+    const message = await snackbar.textContent();
+    return message || '';
   }
 
   /**
    * Check if no tasks message is displayed
    */
   async hasNoTasksMessage() {
-    const hidden = await this.page.isHidden(this.noTasksMessage);
-    return !hidden;
+    return this.noTasksMessage.isVisible();
   }
 
   /**
    * Check if loading spinner is visible
    */
   async isLoading() {
-    const hidden = await this.page.isHidden(this.loadingSpinner);
-    return !hidden;
+    return this.page.getByRole('progressbar').first().isVisible();
   }
 
   /**
    * Wait for loading to complete
    */
   async waitForLoadingComplete() {
-    await this.page.waitForSelector(this.loadingSpinner, { state: 'hidden' });
+    await this.page.waitForLoadState('networkidle');
   }
 
   /**
@@ -190,21 +132,17 @@ class TodoPage {
    */
   async isTaskWithDueDateVisible(taskName, dueDate) {
     const formatted = this.formatDateForDisplay(dueDate);
-    const selector = `text=${taskName}.*${formatted}`;
-    
-    try {
-      await this.page.waitForSelector(selector, { timeout: 5000 });
-      return true;
-    } catch {
-      return false;
-    }
+    const taskCard = this.getTaskCardByName(taskName);
+    const dueText = taskCard.getByText(`Due: ${formatted}`);
+
+    return dueText.first().isVisible();
   }
 
   /**
    * Format date for display (YYYY-MM-DD to MMM DD, YYYY)
    */
   formatDateForDisplay(dateString) {
-    const date = new Date(dateString + 'T00:00:00');
+    const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -216,18 +154,20 @@ class TodoPage {
    * Get all visible task names in order
    */
   async getTaskNamesInOrder() {
-    const taskCards = await this.page.$$('[role="listitem"]');
-    const names = [];
-    
-    for (const card of taskCards) {
-      const h3 = await card.$('h3');
-      if (h3) {
-        const text = await h3.textContent();
-        names.push(text?.trim());
-      }
-    }
-    
-    return names;
+    const headings = this.page.locator('.MuiCard-root h3');
+    const names = await headings.allTextContents();
+    return names.map((name) => name?.trim() || '');
+  }
+
+  /**
+   * Get the card for a task by exact task name
+   */
+  getTaskCardByName(taskName) {
+    return this.page
+      .locator('.MuiCard-root', {
+        has: this.page.getByRole('heading', { level: 3, name: taskName, exact: true }),
+      })
+      .first();
   }
 }
 
