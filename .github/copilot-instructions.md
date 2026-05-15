@@ -11,4 +11,5 @@ The project documentation will be built during the bootcamp sessions.
 - [Project Overview](../docs/project-overview.md) - Overview of the project
 - [Functional Requirements](../docs/functional-requirements.md) - Core task management functional requirements
 - [UI Guidelines](../docs/ui-guidelines.md) - Design standards, component requirements, accessibility, and styling guidelines
+- [Coding Guidelines](../docs/coding-guidelines.md) - Coding style, quality principles, and best practices (DRY, SOLID, import organization, and linter usage)
 - [Testing Guidelines](../docs/testing-guidelines.md) - Testing principles, standards, and best practices for unit, integration, and E2E tests
